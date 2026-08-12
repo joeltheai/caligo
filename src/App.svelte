@@ -1,5 +1,6 @@
 <script lang="ts">
   import Canvas from './lib/Canvas.svelte'
+  import Knob from './lib/Knob.svelte'
   import { addNode, compileGraph, connect, defaultPatch, removeNode, type PatchGraph } from './lib/graph'
   import { ensureStrudel, playCode, stopAudio } from './lib/strudel'
   import { PALETTE, NODE_TYPES, type NodeKind } from './lib/types'
@@ -9,7 +10,10 @@
   let playing = $state(false)
   let busy = $state(false)
   let error = $state<string | null>(null)
+  let bpm = $state(120)
   let code = $derived(compileGraph(graph).code)
+  // setcpm takes cycles/min; bpm/4 ≈ 4/4 quarters
+  let playable = $derived(code ? `setcpm(${bpm}/4)\n${code}` : '')
 
   let menu = $state<{ open: boolean; x: number; y: number; worldX: number; worldY: number }>({
     open: false,
@@ -29,8 +33,8 @@
         stopAudio()
         playing = false
       } else {
-        if (!code) throw new Error('turn on a SOUND module')
-        await playCode(code)
+        if (!playable) throw new Error('turn on a SOUND module')
+        await playCode(playable)
         playing = true
       }
     } catch (e) {
@@ -44,7 +48,7 @@
   async function hotReload() {
     if (!playing) return
     try {
-      await playCode(code)
+      await playCode(playable)
       error = null
     } catch (e) {
       error = e instanceof Error ? e.message : String(e)
@@ -52,7 +56,7 @@
   }
 
   $effect(() => {
-    void code
+    void playable
     if (playing) {
       const t = setTimeout(() => {
         void hotReload()
@@ -145,22 +149,25 @@
     onContextMenu={openMenu}
   />
 
-  <div class="pointer-events-none absolute top-2 left-2 z-[5] flex flex-col gap-1.5">
-    <button
-      class="pointer-events-auto cursor-pointer border border-border bg-panel px-2.5 py-1 text-[11px] text-fg disabled:cursor-wait disabled:opacity-50 {playing
-        ? 'border-border-strong text-fg-bright'
-        : ''}"
-      type="button"
-      disabled={busy}
-      onclick={togglePlay}
-    >
-      {playing ? 'stop' : 'play'}
-    </button>
-    {#if error}
-      <p class="pointer-events-auto m-0 max-w-[280px] border border-border bg-panel px-1.5 py-1 text-[11px] leading-snug text-muted-2">
-        {error}
-      </p>
-    {/if}
+  <div class="pointer-events-none absolute top-2 left-2 z-[5] flex items-start gap-2">
+    <div class="flex flex-col gap-1.5">
+      <button
+        class="pointer-events-auto cursor-pointer border border-border bg-panel px-2.5 py-1 text-[11px] text-fg disabled:cursor-wait disabled:opacity-50 {playing
+          ? 'border-border-strong text-fg-bright'
+          : ''}"
+        type="button"
+        disabled={busy}
+        onclick={togglePlay}
+      >
+        {playing ? 'stop' : 'play'}
+      </button>
+      {#if error}
+        <p class="pointer-events-auto m-0 max-w-[280px] border border-border bg-panel px-1.5 py-1 text-[11px] leading-snug text-muted-2">
+          {error}
+        </p>
+      {/if}
+    </div>
+    <Knob value={bpm} onChange={(v) => (bpm = v)} />
   </div>
 
   {#if menu.open}
