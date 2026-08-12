@@ -6,7 +6,10 @@ export async function ensureStrudel() {
   if (!ready) {
     ready = (async () => {
       const web = await import('@strudel/web')
-      await web.initStrudel()
+      await web.initStrudel({
+        // bd / sd / hh etc. need a sample map — synths alone aren't enough
+        prebake: () => web.samples('github:tidalcycles/dirt-samples'),
+      })
       evaluateFn = web.evaluate
       hushFn = web.hush
     })()

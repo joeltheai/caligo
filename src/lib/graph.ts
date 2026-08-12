@@ -1,4 +1,5 @@
 import {
+  NODE_TYPES,
   createEdge,
   createNode,
   type GraphEdge,
@@ -12,17 +13,26 @@ export interface PatchGraph {
 }
 
 export function defaultPatch(): PatchGraph {
-  const sound = createNode('sound', 80, 140)
-  const lpf = createNode('lpf', 340, 140)
-  const room = createNode('room', 600, 140)
-  sound.params.mode = 'note'
-  sound.params.pattern = '<c3 eb3 g3 bb3>*4'
-  sound.params.synth = 'sawtooth'
+  const drums = createNode('sound', 80, 80)
+  const lead = createNode('sound', 80, 240)
+  const lpf = createNode('lpf', 340, 160)
+  const room = createNode('room', 600, 160)
+  drums.params.mode = 'sample'
+  drums.params.pattern = 'bd sd'
+  drums.params.synth = ''
+  lead.params.mode = 'note'
+  lead.params.pattern = '<c3 eb3 g3 bb3>*4'
+  lead.params.synth = 'sawtooth'
   lpf.params.cutoff = 1800
   room.params.size = 0.45
   return {
-    nodes: [sound, lpf, room],
-    edges: [createEdge(sound.id, lpf.id), createEdge(lpf.id, room.id)],
+    nodes: [drums, lead, lpf, room],
+    // both sounds mix into the same filter → reverb
+    edges: [
+      createEdge(drums.id, lpf.id),
+      createEdge(lead.id, lpf.id),
+      createEdge(lpf.id, room.id),
+    ],
   }
 }
 
@@ -37,14 +47,24 @@ export function removeNode(graph: PatchGraph, id: string) {
   graph.edges = graph.edges.filter((e) => e.from !== id && e.to !== id)
 }
 
+function reaches(graph: PatchGraph, from: string, target: string, seen = new Set<string>()): boolean {
+  if (from === target) return true
+  if (seen.has(from)) return false
+  seen.add(from)
+  return outgoing(graph, from).some((e) => reaches(graph, e.to, target, seen))
+}
+
 export function connect(graph: PatchGraph, from: string, to: string): string | null {
   if (from === to) return 'cannot self-connect'
   const a = graph.nodes.find((n) => n.id === from)
   const b = graph.nodes.find((n) => n.id === to)
   if (!a || !b) return 'missing node'
   if (a.kind === 'sound' && b.kind === 'sound') return 'cannot connect sound to sound'
-  // single-input modules: replace existing inbound edge
-  graph.edges = graph.edges.filter((e) => e.to !== to)
+  if (NODE_TYPES[b.kind].inputs < 1) return 'no input on target'
+  if (graph.edges.some((e) => e.from === from && e.to === to)) return 'already connected'
+  // connecting to→from would close a cycle once the new edge exists
+  if (reaches(graph, to, from)) return 'cannot create a cycle'
+  // multiple inbound cables mix (stack) at the target
   graph.edges = [...graph.edges, createEdge(from, to)]
   return null
 }
@@ -93,30 +113,54 @@ function applyEffect(kind: NodeKind, params: Record<string, string | number>, co
   }
 }
 
-/** Walk each enabled sound forward through effects (disabled nodes bypass). */
+function mix(parts: string[]): string {
+  const unique = [...new Set(parts.filter(Boolean))]
+  if (!unique.length) return ''
+  return unique.length === 1 ? unique[0] : `stack(${unique.join(', ')})`
+}
+
+/** Compile the patch: sounds layer; multiple cables into a module mix via stack. */
 export function compileGraph(graph: PatchGraph): { code: string; chains: string[] } {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
+  const memo = new Map<string, string | null>()
+
+  function signalAt(id: string, stack = new Set<string>()): string | null {
+    if (memo.has(id)) return memo.get(id)!
+    if (stack.has(id)) return null
+    stack.add(id)
+
+    const node = byId.get(id)
+    if (!node) {
+      memo.set(id, null)
+      return null
+    }
+
+    let expr: string | null = null
+
+    if (node.kind === 'sound') {
+      expr = node.on ? soundExpr(node) : null
+    } else {
+      const sources = incoming(graph, id)
+        .map((e) => signalAt(e.from, stack))
+        .filter((s): s is string => Boolean(s))
+      const mixed = mix(sources)
+      if (!mixed) expr = null
+      else if (node.on) expr = applyEffect(node.kind, node.params, mixed)
+      else expr = mixed
+    }
+
+    stack.delete(id)
+    memo.set(id, expr)
+    return expr
+  }
+
+  // terminals: nodes with signal and no outbound cable (each branch still contributes)
   const chains: string[] = []
-
-  function forward(id: string, code: string, seen = new Set<string>()): string {
-    if (seen.has(id)) return code
-    seen.add(id)
-    const outs = outgoing(graph, id)
-    if (!outs.length) return code
-    // follow first cable for now (simple serial chains)
-    const next = byId.get(outs[0].to)
-    if (!next) return code
-    const nextCode = next.on && next.kind !== 'sound' ? applyEffect(next.kind, next.params, code) : code
-    return forward(next.id, nextCode, seen)
-  }
-
   for (const n of graph.nodes) {
-    if (n.kind !== 'sound' || !n.on) continue
-    chains.push(forward(n.id, soundExpr(n)))
+    if (outgoing(graph, n.id).length) continue
+    const sig = signalAt(n.id)
+    if (sig) chains.push(sig)
   }
 
-  const unique = [...new Set(chains)]
-  if (!unique.length) return { code: '', chains: [] }
-  const code = unique.length === 1 ? unique[0] : `stack(${unique.join(', ')})`
-  return { code, chains: unique }
+  return { code: mix(chains), chains }
 }
