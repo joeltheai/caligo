@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0d0d0d;
+  --color-panel: #141414;
+  --color-panel-2: #1a1a1a;
+  --color-border: #3a3a3a;
+  --color-border-soft: #2e2e2e;
+  --color-border-strong: #6a6a6a;
+  --color-fg: #c8c8c8;
+  --color-fg-bright: #e0e0e0;
+  --color-muted: #7a7a7a;
+  --color-muted-2: #9a9a9a;
+  --color-port: #555555;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    @apply m-0 h-full w-full overflow-hidden bg-bg font-mono text-xs text-fg;
+  }
+
+  button,
+  input,
+  select {
+    border-radius: 0;
+    font: inherit;
+  }
+}
