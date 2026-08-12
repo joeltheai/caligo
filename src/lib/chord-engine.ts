@@ -8,6 +8,8 @@ export const VOICES = 8
 export const PADS = 16
 export const MAX_STEPS = 32
 export const MAX_PROG = 8
+/** ceiling on the emitted loop, in steps — 1024 is 64 bars of 1/16 */
+export const MAX_LOOP_STEPS = 1024
 
 /* ------------------------------------------------------------------ chords */
 
@@ -93,6 +95,8 @@ export interface ArpData {
   mute: boolean[]
   linkLen: boolean
   rate: string
+  /** restart the pattern on every new chord, instead of free-running across the bar line */
+  retrig: boolean
   chordMode: boolean
   /** which scale degrees (I..VII) the pitch lane may transpose */
   degrees: boolean[]
@@ -172,6 +176,7 @@ export function defaultArpData(): ArpData {
     mute: Array.from({ length: MAX_STEPS }, () => false),
     linkLen: true,
     rate: '1/16',
+    retrig: false,
     chordMode: false,
     degrees: [true, true, true, true, true, true, true],
     prevent: Array.from({ length: 12 }, () => 0),
@@ -268,11 +273,29 @@ export function stepsPerCycle(rate: string): number {
   return RATES.find((r) => r.value === rate)?.steps ?? 16
 }
 
+/**
+ * Steps elapsed since the pattern last started. Free-running, it is the transport step, so a lane
+ * whose length does not divide the bar keeps drifting; with retrig, the count restarts every bar.
+ */
+export function patternStep(arp: ArpData, step: number): number {
+  if (!arp.retrig) return step
+  const perCycle = stepsPerCycle(arp.rate)
+  return ((step % perCycle) + perCycle) % perCycle
+}
+
 /** the cell of a lane that is in play on a given step — each lane clocks itself */
 export function laneIndex(arp: ArpData, key: LaneKey, step: number): number {
   const len = Math.max(1, arp.len[key])
   const div = Math.max(1, arp.div[key])
-  return Math.floor(step / div) % len
+  return Math.floor(patternStep(arp, step) / div) % len
+}
+
+/** bars a lane takes to come back around to its first step against the bar grid */
+export function laneWrapBars(arp: ArpData, key: LaneKey): number {
+  const perCycle = stepsPerCycle(arp.rate)
+  if (arp.retrig) return 1
+  const span = Math.max(1, arp.len[key]) * Math.max(1, arp.div[key])
+  return lcm(span, perCycle) / perCycle
 }
 
 function laneValue(arp: ArpData, key: LaneKey, step: number): number {
@@ -290,13 +313,19 @@ const lcm = (a: number, b: number) => (a * b) / gcd(a, b)
 
 /** how many steps until the whole thing (lanes + chord progression) repeats */
 function arpPeriod(arp: ArpData, chord: ChordData | null, perCycle: number): number {
-  let period = lcm(perCycle, Math.max(1, arp.len.note) * Math.max(1, arp.div.note))
-  for (const l of LANES) {
-    if (l.key === 'note' || !laneActive(arp, l.key)) continue
-    period = lcm(period, Math.max(1, arp.len[l.key]) * Math.max(1, arp.div[l.key]))
+  // retrig folds every lane back into the bar, so only the progression can stretch the loop
+  let period = perCycle
+  if (!arp.retrig) {
+    period = lcm(perCycle, Math.max(1, arp.len.note) * Math.max(1, arp.div.note))
+    for (const l of LANES) {
+      if (l.key === 'note' || !laneActive(arp, l.key)) continue
+      period = lcm(period, Math.max(1, arp.len[l.key]) * Math.max(1, arp.div[l.key]))
+    }
   }
   if (chord?.progOn) period = lcm(period, Math.max(1, chord.progLen) * perCycle)
-  const cap = perCycle * Math.max(1, Math.floor(256 / perCycle))
+  // coprime lane lengths can send the true period into the millions; truncating costs a phase
+  // jump at the loop point, so the ceiling is generous enough that musical settings never hit it
+  const cap = perCycle * Math.max(1, Math.floor(MAX_LOOP_STEPS / perCycle))
   return Math.min(period, cap)
 }
 
@@ -335,14 +364,17 @@ function voiceAt(held: Held, slotIndex: number): { note: number; vel: number } |
   return { note: held.notes[i] + 12 * octave, vel: held.vel[i] ?? 1 }
 }
 
-function simulate(arp: ArpData, chord: ChordData | null, perCycle: number) {
-  const period = arpPeriod(arp, chord, perCycle)
+function simulate(arp: ArpData, chord: ChordData | null, perCycle: number, period: number) {
   const events: StepEvent[] = []
   const fallback: Held = { notes: [48, 51, 55, 58], vel: [1, 1, 1, 1] }
   let pos = 0
   let last: StepEvent | null = null
 
   for (let step = 0; step < period; step++) {
+    if (arp.retrig && step % perCycle === 0) {
+      pos = 0
+      last = null
+    }
     const idx = laneIndex(arp, 'note', step)
     const cell = arp.lanes.note[idx] ?? 0
     if (arp.mute[idx] || cell === 0) continue
@@ -411,7 +443,7 @@ function simulate(arp: ArpData, chord: ChordData | null, perCycle: number) {
     last = ev
   }
 
-  return { events, period }
+  return events
 }
 
 /* -------------------------------------------------------------- code emit */
@@ -437,13 +469,26 @@ function altToken(alts: number[][]): string {
 /** late/early is drawn into the step's own slot using mini-notation weights */
 const TICKS = 8
 
+/** chord mode and random alternatives fatten every slot, so the loop shrinks rather than the code */
+const MAX_CODE_CHARS = 12000
+
 /**
  * Render the arp as `note(...)` with per-step gain and absolute durations.
  * Returns '' when nothing sounds.
  */
 export function arpNoteCode(arp: ArpData, chord: ChordData | null): string {
   const perCycle = stepsPerCycle(arp.rate)
-  const { events, period } = simulate(arp, chord, perCycle)
+  let period = arpPeriod(arp, chord, perCycle)
+  let code = emit(arp, chord, perCycle, period)
+  while (code.length > MAX_CODE_CHARS && period > perCycle) {
+    period = perCycle * Math.max(1, Math.floor(period / perCycle / 2))
+    code = emit(arp, chord, perCycle, period)
+  }
+  return code
+}
+
+function emit(arp: ArpData, chord: ChordData | null, perCycle: number, period: number): string {
+  const events = simulate(arp, chord, perCycle, period)
   if (!events.length) return ''
 
   const slots: string[] = Array.from({ length: period }, () => '~')

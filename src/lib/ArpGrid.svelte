@@ -7,6 +7,7 @@
     SHAPE_BASE,
     SHAPES,
     laneIndex,
+    laneWrapBars,
     stepAtCycle,
     stepsPerCycle,
     type ArpData,
@@ -37,6 +38,15 @@
   /** playhead of the lane on screen, which drifts against the others when its ÷ differs */
   const playing = $derived(step < 0 ? -1 : laneIndex(arp, tab, step))
   const playingNote = $derived(step < 0 ? -1 : laneIndex(arp, 'note', step))
+
+  const wrap = $derived(laneWrapBars(arp, tab))
+  const fit = $derived(
+    arp.retrig
+      ? `${stepsPerCycle(arp.rate)}/bar · restarts each chord`
+      : wrap === 1
+        ? `${stepsPerCycle(arp.rate)} steps/bar`
+        : `${stepsPerCycle(arp.rate)}/bar · lane comes round every ${wrap} bars`,
+  )
 
   let gridEl: HTMLElement | undefined = $state()
   let hovered = $state<number | null>(null)
@@ -151,7 +161,7 @@
       </button>
     {/each}
     <span class="ml-auto text-[9px] text-muted">
-      {hovered != null ? `step ${hovered + 1} · ${longText(tab, arp.lanes[tab][hovered] ?? def.center)}` : `${stepsPerCycle(arp.rate)} steps/bar`}
+      {hovered != null ? `step ${hovered + 1} · ${longText(tab, arp.lanes[tab][hovered] ?? def.center)}` : fit}
     </span>
   </div>
 
@@ -315,6 +325,14 @@
       }}
     >
       link
+    </button>
+    <button
+      class="border px-1 {arp.retrig ? 'border-border-strong text-fg-bright' : 'border-border-soft text-muted'}"
+      type="button"
+      title="restart at step 1 on every chord — off, lanes run free across the bar line"
+      onclick={() => (arp.retrig = !arp.retrig)}
+    >
+      retrig
     </button>
     <button
       class="border px-1 {arp.chordMode ? 'border-border-strong text-fg-bright' : 'border-border-soft text-muted'}"

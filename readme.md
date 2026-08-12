@@ -21,7 +21,10 @@ A pad-and-grid workflow for building chords and arpeggios without typed patterns
   over MIDI. The progression lane loops pads over N bars; turn it off to latch one pad by hand.
 - **ARP** — eight step lanes (note, rand, oct, pitch, vel, gate, late, harmony), each with its own
   length and clock divider, so lanes drift against each other polymetrically. Click a step to mute,
-  shift-click to tie into the previous step, alt-click to reset the note position.
+  shift-click to tie into the previous step, alt-click to reset the note position. A step is an
+  absolute 1/16 (or whatever `rate` says), so a lane whose length does not divide the bar runs over
+  the bar line and comes back around later — the readout tells you how many bars that takes.
+  `retrig` restarts every lane on each chord.
 - **VOICE** — picks the synth (and attack/release) for notes arriving from CHORDS or ARP. The note
   modules only emit notes, so the instrument is a module you cable them into.
 
