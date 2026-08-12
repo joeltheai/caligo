@@ -59,7 +59,7 @@
 
 <div
   data-module
-  class="absolute z-[2] w-[180px] cursor-grab select-none border border-border bg-panel text-fg active:cursor-grabbing {selected
+  class="absolute z-[2] w-[200px] cursor-grab select-none border border-border bg-panel text-fg active:cursor-grabbing {selected
     ? 'border-border-strong'
     : ''} {!node.on ? 'opacity-40' : ''}"
   style:left="{node.x}px"

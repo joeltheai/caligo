@@ -1,3 +1,5 @@
+import { prebake } from './prebake'
+
 let ready: Promise<void> | null = null
 let evaluateFn: ((code: string) => Promise<unknown>) | null = null
 let hushFn: (() => void) | null = null
@@ -6,10 +8,7 @@ export async function ensureStrudel() {
   if (!ready) {
     ready = (async () => {
       const web = await import('@strudel/web')
-      await web.initStrudel({
-        // bd / sd / hh etc. need a sample map — synths alone aren't enough
-        prebake: () => web.samples('github:tidalcycles/dirt-samples'),
-      })
+      await web.initStrudel({ prebake })
       evaluateFn = web.evaluate
       hushFn = web.hush
     })()

@@ -19,6 +19,7 @@ export function defaultPatch(): PatchGraph {
   const room = createNode('room', 600, 160)
   drums.params.mode = 'sample'
   drums.params.pattern = 'bd sd'
+  drums.params.bank = 'RolandTR909'
   drums.params.synth = ''
   lead.params.mode = 'note'
   lead.params.pattern = '<c3 eb3 g3 bb3>*4'
@@ -85,13 +86,17 @@ function soundExpr(node: GraphNode): string {
   const pattern = String(node.params.pattern ?? 'bd')
   const mode = String(node.params.mode ?? 'sample')
   const synth = String(node.params.synth ?? '')
+  const bank = String(node.params.bank ?? '')
+  let code: string
   if (mode === 'note') {
-    let code = `note("${escapeMini(pattern)}")`
+    code = `note("${escapeMini(pattern)}")`
     if (synth) code += `.s("${escapeMini(synth)}")`
     else code += `.s("sawtooth")`
-    return code
+  } else {
+    code = `s("${escapeMini(pattern)}")`
   }
-  return `s("${escapeMini(pattern)}")`
+  if (bank) code += `.bank("${escapeMini(bank)}")`
+  return code
 }
 
 function applyEffect(kind: NodeKind, params: Record<string, string | number>, code: string): string {

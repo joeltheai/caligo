@@ -1,3 +1,5 @@
+import { DRUM_BANKS } from './banks'
+
 export type PortKind = 'audio'
 
 export type NodeKind = 'sound' | 'gain' | 'lpf' | 'delay' | 'room' | 'crush' | 'pan'
@@ -61,6 +63,16 @@ export const NODE_TYPES: Record<NodeKind, NodeTypeDef> = {
       },
       { key: 'pattern', label: 'pat', type: 'text', default: 'bd sd' },
       {
+        key: 'bank',
+        label: 'bank',
+        type: 'select',
+        options: [
+          { value: '', label: '(default)' },
+          ...DRUM_BANKS.map((b) => ({ value: b, label: b })),
+        ],
+        default: '',
+      },
+      {
         key: 'synth',
         label: 'synth',
         type: 'select',
@@ -70,6 +82,13 @@ export const NODE_TYPES: Record<NodeKind, NodeTypeDef> = {
           { value: 'square', label: 'sqr' },
           { value: 'triangle', label: 'tri' },
           { value: 'sine', label: 'sin' },
+          { value: 'piano', label: 'piano' },
+          { value: 'gm_piano', label: 'gm piano' },
+          { value: 'gm_epiano1', label: 'gm epiano' },
+          { value: 'gm_vibraphone', label: 'gm vibes' },
+          { value: 'zzfx', label: 'zzfx' },
+          { value: 'z_sawtooth', label: 'z saw' },
+          { value: 'z_noise', label: 'z noise' },
         ],
         default: '',
       },

@@ -47,8 +47,8 @@
   }
 
   function portCenter(node: GraphNode, side: 'in' | 'out') {
-    const w = 180
-    const h = 90
+    const w = 200
+    const h = 130
     return {
       x: node.x + (side === 'out' ? w : 0),
       y: node.y + h / 2,
