@@ -1,8 +1,27 @@
 import { DRUM_BANKS } from './banks'
+import {
+  defaultArpData,
+  defaultChordData,
+  type ArpData,
+  type ChordData,
+} from './chord-engine'
 
 export type PortKind = 'audio'
 
-export type NodeKind = 'sound' | 'gain' | 'lpf' | 'delay' | 'room' | 'crush' | 'pan'
+export type NodeKind =
+  | 'sound'
+  | 'chord'
+  | 'arp'
+  | 'voice'
+  | 'gain'
+  | 'lpf'
+  | 'delay'
+  | 'room'
+  | 'crush'
+  | 'pan'
+
+/** kinds that make notes rather than process audio */
+export const NOTE_KINDS: NodeKind[] = ['chord', 'arp']
 
 export type FieldType = 'text' | 'number' | 'select'
 
@@ -25,6 +44,9 @@ export interface NodeTypeDef {
   inputs: number
   outputs: number
   fields: FieldDef[]
+  width?: number
+  /** renders a dedicated editor instead of the generic field list */
+  editor?: 'chord' | 'arp'
 }
 
 export interface GraphNode {
@@ -34,6 +56,15 @@ export interface GraphNode {
   y: number
   on: boolean
   params: Record<string, string | number>
+  chord?: ChordData
+  arp?: ArpData
+}
+
+/** cables always meet a module just under its header, whatever its height */
+export const PORT_OFFSET = 26
+
+export function nodeWidth(kind: NodeKind): number {
+  return NODE_TYPES[kind].width ?? 200
 }
 
 export interface GraphEdge {
@@ -41,6 +72,22 @@ export interface GraphEdge {
   from: string
   to: string
 }
+
+const SYNTH_OPTIONS = [
+  { value: 'sawtooth', label: 'saw' },
+  { value: 'square', label: 'sqr' },
+  { value: 'triangle', label: 'tri' },
+  { value: 'sine', label: 'sin' },
+  { value: 'piano', label: 'piano' },
+  { value: 'gm_piano', label: 'gm piano' },
+  { value: 'gm_epiano1', label: 'gm epiano' },
+  { value: 'gm_vibraphone', label: 'gm vibes' },
+  { value: 'gm_pad_warm', label: 'gm pad' },
+  { value: 'gm_lead_2_sawtooth', label: 'gm lead' },
+  { value: 'zzfx', label: 'zzfx' },
+  { value: 'z_sawtooth', label: 'z saw' },
+  { value: 'z_noise', label: 'z noise' },
+]
 
 export const NODE_TYPES: Record<NodeKind, NodeTypeDef> = {
   sound: {
@@ -92,6 +139,41 @@ export const NODE_TYPES: Record<NodeKind, NodeTypeDef> = {
         ],
         default: '',
       },
+    ],
+  },
+  chord: {
+    kind: 'chord',
+    title: 'CHORDS',
+    accent: '#8a7ac0',
+    cable: '#888',
+    inputs: 0,
+    outputs: 1,
+    width: 420,
+    editor: 'chord',
+    fields: [],
+  },
+  arp: {
+    kind: 'arp',
+    title: 'ARP',
+    accent: '#c07a9a',
+    cable: '#888',
+    inputs: 1,
+    outputs: 1,
+    width: 560,
+    editor: 'arp',
+    fields: [],
+  },
+  voice: {
+    kind: 'voice',
+    title: 'VOICE',
+    accent: '#7a9ac0',
+    cable: '#888',
+    inputs: 1,
+    outputs: 1,
+    fields: [
+      { key: 'synth', label: 'synth', type: 'select', options: SYNTH_OPTIONS, default: 'gm_epiano1' },
+      { key: 'attack', label: 'att', type: 'number', min: 0, max: 1, step: 0.005, default: 0.01 },
+      { key: 'release', label: 'rel', type: 'number', min: 0.01, max: 2, step: 0.01, default: 0.2 },
     ],
   },
   gain: {
@@ -153,7 +235,18 @@ export const NODE_TYPES: Record<NodeKind, NodeTypeDef> = {
   },
 }
 
-export const PALETTE: NodeKind[] = ['sound', 'gain', 'lpf', 'delay', 'room', 'crush', 'pan']
+export const PALETTE: NodeKind[] = [
+  'chord',
+  'arp',
+  'voice',
+  'sound',
+  'gain',
+  'lpf',
+  'delay',
+  'room',
+  'crush',
+  'pan',
+]
 
 let seq = 1
 export function uid(prefix = 'n') {
@@ -164,7 +257,10 @@ export function createNode(kind: NodeKind, x: number, y: number): GraphNode {
   const def = NODE_TYPES[kind]
   const params: Record<string, string | number> = {}
   for (const f of def.fields) params[f.key] = f.default
-  return { id: uid('n'), kind, x, y, on: true, params }
+  const node: GraphNode = { id: uid('n'), kind, x, y, on: true, params }
+  if (kind === 'chord') node.chord = defaultChordData()
+  if (kind === 'arp') node.arp = defaultArpData()
+  return node
 }
 
 export function createEdge(from: string, to: string): GraphEdge {

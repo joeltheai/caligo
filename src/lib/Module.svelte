@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { NODE_TYPES, type GraphNode, type FieldDef } from '../lib/types'
+  import ArpGrid from './ArpGrid.svelte'
+  import ChordPads from './ChordPads.svelte'
+  import { NODE_TYPES, PORT_OFFSET, type GraphNode, type FieldDef } from '../lib/types'
 
   interface Props {
     node: GraphNode
@@ -14,7 +16,7 @@
   }
 
   let {
-    node,
+    node = $bindable(),
     selected = false,
     clientToWorld,
     onSelect,
@@ -32,7 +34,7 @@
   let oy = 0
 
   function startDrag(e: PointerEvent) {
-    if ((e.target as HTMLElement).closest('.port, input, select, button')) return
+    if ((e.target as HTMLElement).closest('.port, input, select, button, [data-nodrag]')) return
     dragging = true
     const w = clientToWorld(e.clientX, e.clientY)
     ox = w.x - node.x
@@ -59,11 +61,12 @@
 
 <div
   data-module
-  class="absolute z-[2] w-[200px] cursor-grab select-none border border-border bg-panel text-fg active:cursor-grabbing {selected
+  class="absolute z-[2] cursor-grab select-none border border-border bg-panel text-fg active:cursor-grabbing {selected
     ? 'border-border-strong'
     : ''} {!node.on ? 'opacity-40' : ''}"
   style:left="{node.x}px"
   style:top="{node.y}px"
+  style:width="{def.width ?? 200}px"
   onpointerdown={startDrag}
   onpointermove={onMovePtr}
   onpointerup={endDrag}
@@ -96,19 +99,32 @@
     </button>
   </header>
 
-  <div class="relative min-h-14 px-3.5 py-2">
-    {#if def.inputs}
-      <button
-        class="port absolute top-1/2 -left-1 mt-[-4px] size-[7px] cursor-crosshair border border-port bg-bg p-0"
-        type="button"
-        aria-label="input"
-        onpointerdown={(e) => {
-          e.stopPropagation()
-          onPortDown?.(node.id, 'in', e)
-        }}
-      ></button>
-    {/if}
+  {#if def.inputs}
+    <button
+      class="port absolute -left-1 z-[3] size-[7px] cursor-crosshair border border-port bg-bg p-0"
+      style:top="{PORT_OFFSET - 4}px"
+      type="button"
+      aria-label="input"
+      onpointerdown={(e) => {
+        e.stopPropagation()
+        onPortDown?.(node.id, 'in', e)
+      }}
+    ></button>
+  {/if}
+  {#if def.outputs}
+    <button
+      class="port absolute -right-1 z-[3] size-[7px] cursor-crosshair border border-port bg-port p-0"
+      style:top="{PORT_OFFSET - 4}px"
+      type="button"
+      aria-label="output"
+      onpointerdown={(e) => {
+        e.stopPropagation()
+        onPortDown?.(node.id, 'out', e)
+      }}
+    ></button>
+  {/if}
 
+  <div class="relative min-h-14 px-3.5 py-2">
     <div class="flex flex-col gap-1">
       {#each def.fields as f (f.key)}
         <label class="grid grid-cols-[32px_1fr_auto] items-center gap-1 text-[10px] text-muted">
@@ -147,16 +163,10 @@
       {/each}
     </div>
 
-    {#if def.outputs}
-      <button
-        class="port absolute top-1/2 -right-1 mt-[-4px] size-[7px] cursor-crosshair border border-port bg-port p-0"
-        type="button"
-        aria-label="output"
-        onpointerdown={(e) => {
-          e.stopPropagation()
-          onPortDown?.(node.id, 'out', e)
-        }}
-      ></button>
+    {#if def.editor === 'chord' && node.chord}
+      <ChordPads bind:chord={node.chord} live={node.on} />
+    {:else if def.editor === 'arp' && node.arp}
+      <ArpGrid bind:arp={node.arp} live={node.on} />
     {/if}
   </div>
 </div>

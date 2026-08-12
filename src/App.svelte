@@ -134,7 +134,7 @@
 
 <div class="relative h-screen w-screen overflow-hidden bg-bg text-fg">
   <Canvas
-    nodes={graph.nodes}
+    bind:nodes={graph.nodes}
     edges={graph.edges}
     {selectedId}
     onSelect={(id) => {

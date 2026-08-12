@@ -1,6 +1,6 @@
 <script lang="ts">
   import Module from './Module.svelte'
-  import { NODE_TYPES, type GraphEdge, type GraphNode } from './types'
+  import { NODE_TYPES, PORT_OFFSET, nodeWidth, type GraphEdge, type GraphNode } from './types'
 
   interface Props {
     nodes: GraphNode[]
@@ -16,7 +16,7 @@
   }
 
   let {
-    nodes,
+    nodes = $bindable(),
     edges,
     selectedId,
     onSelect,
@@ -47,11 +47,9 @@
   }
 
   function portCenter(node: GraphNode, side: 'in' | 'out') {
-    const w = 200
-    const h = 130
     return {
-      x: node.x + (side === 'out' ? w : 0),
-      y: node.y + h / 2,
+      x: node.x + (side === 'out' ? nodeWidth(node.kind) : 0),
+      y: node.y + PORT_OFFSET,
     }
   }
 
@@ -190,9 +188,9 @@
       {/if}
     </svg>
 
-    {#each nodes as node (node.id)}
+    {#each nodes as node, i (node.id)}
       <Module
-        {node}
+        bind:node={nodes[i]}
         selected={selectedId === node.id}
         clientToWorld={worldFromClient}
         onSelect={onSelect}
