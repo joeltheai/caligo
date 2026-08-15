@@ -1,13 +1,38 @@
 import { WebMidi, type Input, type NoteMessageEvent, type PortEvent } from 'webmidi'
 
-export type NoteHandler = (note: number, velocity: number) => void
+export interface MidiNoteEvent {
+  type: 'noteon' | 'noteoff'
+  note: number
+  velocity: number
+  channel: number
+  timestamp: number
+}
+
+export type NoteHandler = (event: MidiNoteEvent) => void
 
 const handlers = new Set<NoteHandler>()
 let enabling: Promise<string | null> | null = null
 
 function listen(input: Input) {
   input.addListener('noteon', (e: NoteMessageEvent) => {
-    for (const h of handlers) h(e.note.number, e.note.attack)
+    const event: MidiNoteEvent = {
+      type: 'noteon',
+      note: e.note.number,
+      velocity: e.note.attack,
+      channel: e.message.channel,
+      timestamp: e.timestamp,
+    }
+    for (const h of handlers) h(event)
+  })
+  input.addListener('noteoff', (e: NoteMessageEvent) => {
+    const event: MidiNoteEvent = {
+      type: 'noteoff',
+      note: e.note.number,
+      velocity: e.note.release,
+      channel: e.message.channel,
+      timestamp: e.timestamp,
+    }
+    for (const h of handlers) h(event)
   })
 }
 

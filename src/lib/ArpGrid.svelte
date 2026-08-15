@@ -8,11 +8,13 @@
     SHAPES,
     laneIndex,
     laneWrapBars,
+    selectArpPattern,
     stepAtCycle,
     stepsPerCycle,
     type ArpData,
     type LaneKey,
   } from './chord-engine'
+  import { deleteArpPreset, listArpPresets, loadArpPreset, saveArpPreset } from './arp-presets'
   import { clock, watchClock } from './transport.svelte'
 
   interface Props {
@@ -42,7 +44,7 @@
   const wrap = $derived(laneWrapBars(arp, tab))
   const fit = $derived(
     arp.retrig
-      ? `${stepsPerCycle(arp.rate)}/bar · restarts each chord`
+      ? `${stepsPerCycle(arp.rate)}/bar · retrigger armed`
       : wrap === 1
         ? `${stepsPerCycle(arp.rate)} steps/bar`
         : `${stepsPerCycle(arp.rate)}/bar · lane comes round every ${wrap} bars`,
@@ -50,6 +52,36 @@
 
   let gridEl: HTMLElement | undefined = $state()
   let hovered = $state<number | null>(null)
+  let presetNames = $state<string[]>([])
+  let selectedPreset = $state('')
+
+  function refreshPresets() {
+    presetNames = listArpPresets()
+  }
+
+  function savePreset() {
+    const name = window.prompt('Preset name', selectedPreset || 'My arp')?.trim()
+    if (!name) return
+    saveArpPreset(name, arp)
+    selectedPreset = name
+    refreshPresets()
+  }
+
+  function loadPreset(name: string) {
+    const loaded = loadArpPreset(name)
+    if (!loaded) return
+    Object.assign(arp, loaded)
+    selectedPreset = name
+  }
+
+  function renamePattern(index: number) {
+    const name = window.prompt('Pattern name', arp.patternNames[index])?.trim()
+    if (name) arp.patternNames[index] = name
+  }
+
+  $effect(() => {
+    refreshPresets()
+  })
 
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
@@ -148,6 +180,21 @@
 </script>
 
 <div class="mt-2 flex flex-col gap-1.5" data-nodrag>
+  <div class="flex gap-[2px] border-b border-border-soft pb-1">
+    {#each Array(12) as _, i}
+      <button
+        class="min-w-0 flex-1 truncate border px-1 py-[1px] text-[8px] {arp.pattern === i
+          ? 'border-border-strong text-fg-bright'
+          : 'border-border-soft text-muted'}"
+        type="button"
+        title="{arp.patternNames[i]} · shift-click copies current pattern · double-click renames"
+        onclick={(e) => selectArpPattern(arp, i, e.shiftKey)}
+        ondblclick={() => renamePattern(i)}
+      >
+        {String.fromCharCode(65 + i)}
+      </button>
+    {/each}
+  </div>
   <div class="flex flex-wrap items-center gap-[3px]">
     {#each LANES as l}
       <button
@@ -346,5 +393,40 @@
       rand
     </button>
     <button class="border border-border-soft px-1 hover:text-fg" type="button" onclick={clearLane}>clr</button>
+  </div>
+  <div class="grid grid-cols-2 gap-2 text-[9px] text-muted">
+    <label class="grid grid-cols-[34px_1fr_auto] items-center gap-1">
+      <span>swing</span>
+      <input class="min-w-0 accent-muted" type="range" min="-0.45" max="0.45" step="0.05" bind:value={arp.swing} />
+      <em class="not-italic text-muted-2">{Math.round(arp.swing * 100)}%</em>
+    </label>
+    <label class="grid grid-cols-[30px_1fr_auto] items-center gap-1">
+      <span>gate</span>
+      <input class="min-w-0 accent-muted" type="range" min="0.1" max="2" step="0.05" bind:value={arp.globalGate} />
+      <em class="not-italic text-muted-2">{Math.round(arp.globalGate * 100)}%</em>
+    </label>
+  </div>
+  <div class="flex items-center gap-1 border-t border-border-soft pt-1.5 text-[9px] text-muted">
+    <select
+      class="min-w-0 flex-1 border border-border bg-bg px-1 text-fg"
+      value={selectedPreset}
+      onchange={(e) => loadPreset(e.currentTarget.value)}
+    >
+      <option value="">saved presets</option>
+      {#each presetNames as preset}<option value={preset}>{preset}</option>{/each}
+    </select>
+    <button class="border border-border-soft px-1 hover:text-fg" type="button" onclick={savePreset}>save</button>
+    <button
+      class="border border-border-soft px-1 hover:text-fg disabled:opacity-30"
+      type="button"
+      disabled={!selectedPreset}
+      onclick={() => {
+        deleteArpPreset(selectedPreset)
+        selectedPreset = ''
+        refreshPresets()
+      }}
+    >
+      del
+    </button>
   </div>
 </div>
