@@ -28,8 +28,8 @@
     onContextMenu,
   }: Props = $props()
 
-  let panX = $state(0)
-  let panY = $state(0)
+  let panX = $state(220)
+  let panY = $state(80)
   let scale = $state(1)
   let panning = $state(false)
   let px = 0

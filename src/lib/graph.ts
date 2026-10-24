@@ -1,4 +1,9 @@
-import { arpNoteCode, chordNoteCode } from './chord-engine'
+import {
+  arpNoteCode,
+  chordNoteCode,
+  defaultArpData,
+  defaultChordData,
+} from './chord-engine'
 import {
   NODE_TYPES,
   createEdge,
@@ -14,28 +19,63 @@ export interface PatchGraph {
 }
 
 export function defaultPatch(): PatchGraph {
-  const chord = createNode('chord', 140, 60)
-  const arp = createNode('arp', 140, 460)
-  const voice = createNode('voice', 760, 460)
-  const drums = createNode('sound', 620, 60)
-  const lpf = createNode('lpf', 620, 240)
-  const room = createNode('room', 620, 360)
-  drums.params.mode = 'sample'
-  drums.params.pattern = 'bd ~ sd ~'
-  drums.params.bank = 'RolandTR909'
-  drums.params.synth = ''
+  const chord = createNode('chord', -210.079, -38.916)
+  const arp = createNode('arp', 305.304, -60.429)
+  const voice = createNode('voice', 296.032, 406.809)
+  const sound = createNode('sound', -123.484, 452.742)
+  const lpf = createNode('lpf', 534.571, 338.862)
+  const delay = createNode('delay', 832.037, 311.507)
+
+  chord.chord = defaultChordData()
+  Object.assign(chord.chord, {
+    current: 53,
+    selected: 53,
+    page: 48,
+    prog: [59, 58, 57, 53, 48, 49, 50, 51],
+    progLen: 4,
+    progOn: true,
+    transpose: 0,
+    strum: 0,
+    hold: 0.9,
+    mappingMode: 'memory',
+    bank: 'init',
+    keys: true,
+    midi: false,
+    latch: false,
+  })
+
+  const arpData = defaultArpData()
+  const firstPattern = arpData.patterns[0]
+  firstPattern.lanes.note = [1, 3, 6, 4, 7, ...Array(27).fill(9)]
+  firstPattern.len.note = 5
+  firstPattern.div.note = 1
+  firstPattern.rate = '1/16'
+  firstPattern.linkLen = false
+  firstPattern.retrig = true
+  firstPattern.chordMode = false
+  firstPattern.swing = 0
+  firstPattern.globalGate = 1
+  Object.assign(arpData, structuredClone(firstPattern), { pattern: 0, tab: 'note' })
+  arp.arp = arpData
+
   voice.params.synth = 'sawtooth'
-  lpf.params.cutoff = 2400
-  room.params.size = 0.45
+  voice.params.attack = 0
+  voice.params.release = 0.05
+  sound.params.mode = 'sample'
+  sound.params.pattern = 'bd sd bd sd'
+  sound.params.bank = ''
+  sound.params.synth = ''
+  sound.on = false
+  lpf.params.cutoff = 2780
+  delay.params.time = 0
+  delay.params.feedback = 0.08
   return {
-    nodes: [chord, arp, voice, drums, lpf, room],
-    // chords feed the arp, the arp gets a voice, then that and the drums share filter → reverb
+    nodes: [chord, arp, voice, sound, lpf, delay],
     edges: [
       createEdge(chord.id, arp.id),
       createEdge(arp.id, voice.id),
       createEdge(voice.id, lpf.id),
-      createEdge(drums.id, lpf.id),
-      createEdge(lpf.id, room.id),
+      createEdge(lpf.id, delay.id),
     ],
   }
 }
