@@ -191,6 +191,7 @@
     {#each nodes as node, i (node.id)}
       <Module
         bind:node={nodes[i]}
+        sourceChord={nodes.find((candidate) => edges.some((edge) => edge.to === node.id && edge.from === candidate.id))?.chord ?? null}
         selected={selectedId === node.id}
         clientToWorld={worldFromClient}
         onSelect={onSelect}

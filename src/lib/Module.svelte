@@ -5,6 +5,7 @@
 
   interface Props {
     node: GraphNode
+    sourceChord?: GraphNode['chord']
     selected?: boolean
     clientToWorld: (clientX: number, clientY: number) => { x: number; y: number }
     onSelect?: (id: string) => void
@@ -17,6 +18,7 @@
 
   let {
     node = $bindable(),
+    sourceChord = null,
     selected = false,
     clientToWorld,
     onSelect,
@@ -166,7 +168,7 @@
     {#if def.editor === 'chord' && node.chord}
       <ChordPads bind:chord={node.chord} live={node.on} />
     {:else if def.editor === 'arp' && node.arp}
-      <ArpGrid bind:arp={node.arp} live={node.on} />
+      <ArpGrid bind:arp={node.arp} chord={sourceChord} live={node.on} />
     {/if}
   </div>
 </div>

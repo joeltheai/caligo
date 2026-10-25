@@ -6,12 +6,14 @@
     RATES,
     SHAPE_BASE,
     SHAPES,
+    arpNoteStepAtCycle,
     laneIndex,
     laneWrapBars,
     selectArpPattern,
     stepAtCycle,
     stepsPerCycle,
     type ArpData,
+    type ChordData,
     type LaneKey,
   } from './chord-engine'
   import { deleteArpPreset, listArpPresets, loadArpPreset, saveArpPreset } from './arp-presets'
@@ -19,11 +21,12 @@
 
   interface Props {
     arp: ArpData
+    chord?: ChordData | null
     /** module is switched on, so its playhead is worth showing */
     live?: boolean
   }
 
-  let { arp = $bindable(), live = true }: Props = $props()
+  let { arp = $bindable(), chord = null, live = true }: Props = $props()
 
   $effect(watchClock)
 
@@ -38,8 +41,9 @@
 
   const step = $derived(live && clock.running ? stepAtCycle(arp, clock.cycle) : -1)
   /** playhead of the lane on screen, which drifts against the others when its ÷ differs */
-  const playing = $derived(step < 0 ? -1 : laneIndex(arp, tab, step))
-  const playingNote = $derived(step < 0 ? -1 : laneIndex(arp, 'note', step))
+  const phaseStep = $derived(step < 0 ? -1 : arpNoteStepAtCycle(arp, clock.cycle, chord))
+  const playing = $derived(phaseStep < 0 ? -1 : laneIndex(arp, tab, phaseStep))
+  const playingNote = $derived(phaseStep < 0 ? -1 : laneIndex(arp, 'note', phaseStep))
 
   const wrap = $derived(laneWrapBars(arp, tab))
   const fit = $derived(

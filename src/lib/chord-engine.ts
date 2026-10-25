@@ -649,6 +649,15 @@ export function stepAtCycle(arp: ArpData, cycle: number): number {
   return Math.floor(cycle * stepsPerCycle(arp.rate))
 }
 
+/** Note-lane phase used by the live editor, including the same retrigger boundaries as simulation. */
+export function arpNoteStepAtCycle(arp: ArpData, cycle: number, chord: ChordData | null): number {
+  const step = stepAtCycle(arp, cycle)
+  if (!arp.retrig || !chord) return step
+  const perCycle = stepsPerCycle(arp.rate)
+  if (chord.progOn) return step % perCycle
+  return Math.max(0, step - stepAtCycle(arp, chord.triggerCycle))
+}
+
 /** progression slot playing at a transport position, one bar per slot; -1 when it is off */
 export function progSlotAtCycle(chord: ChordData, cycle: number): number {
   if (!chord.progOn) return -1
